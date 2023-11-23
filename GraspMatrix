@@ -1,0 +1,54 @@
+import numpy as np
+
+def grasp_matrix(contact_points):
+    """
+    Compute the grasp matrix for given contact points.
+
+    Parameters:
+    - contact_points: List of 2D contact points, where each point is a 2-element NumPy array.
+
+    Returns:
+    - Grasp matrix G.
+    """
+    num_contacts = len(contact_points)
+    J = np.array([[0, -1], [1, 0]])
+
+    if num_contacts < 3:
+        raise ValueError("At least three contact points are required.")
+
+    # Initialize the grasp matrix with the first contact point
+    x_contact_initial, y_contact_initial = contact_points[0]
+    point_initial = np.array([x_contact_initial, y_contact_initial])
+    normal_initial = np.array([-x_contact_initial, -y_contact_initial])
+    tangent_initial = np.array([y_contact_initial, -x_contact_initial])
+    g_initial = np.array([[tangent_initial[0], normal_initial[0]],
+                         [tangent_initial[1], normal_initial[1]],
+                         [np.dot(tangent_initial, np.dot(J, point_initial)),
+                          np.dot(normal_initial, np.dot(J, point_initial))]])
+
+    # Compute the grasp matrix for the remaining contact points
+    for i in range(1, num_contacts):
+        x_contact_i, y_contact_i = contact_points[i]
+        point_i = np.array([x_contact_i, y_contact_i])
+        normal_i = np.array([-x_contact_i, -y_contact_i])
+        tangent_i = np.array([y_contact_i, -x_contact_i])
+        g_i = np.array([[tangent_i[0], normal_i[0]],
+                        [tangent_i[1], normal_i[1]],
+                        [np.dot(tangent_i, np.dot(J, point_i)),
+                         np.dot(normal_i, np.dot(J, point_i))]])
+        
+        # Concatenate the new grasp matrix with the existing one
+        g_initial = np.hstack((g_initial, g_i))
+
+    return g_initial
+
+# Example usage:
+contact_points_example = [
+    np.array([2, 0]),
+    np.array([0, 2]),
+    np.array([-2, 0])
+]
+
+grasp_matrix_example = grasp_matrix(contact_points_example)
+print("Grasp Matrix:")
+print(grasp_matrix_example)
