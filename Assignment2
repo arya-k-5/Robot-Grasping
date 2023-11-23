@@ -1,7 +1,6 @@
 import numpy as np
 
-# Assuming frictional, rigid contact and p=2 (t,n)
-# Assuming m=3
+# number of fingers  = 3
 
 radius = 2
 theta_vals = np.linspace(0, 2 * np.pi, 100)
