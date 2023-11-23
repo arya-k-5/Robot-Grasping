@@ -1,0 +1,126 @@
+import numpy as np
+
+# Assuming frictional, rigid contact and p=2 (t,n)
+# Assuming m=3
+
+radius = 2
+theta_vals = np.linspace(0, 2 * np.pi, 100)
+J = np.array([[0, -1], [1, 0]])
+
+min_singular_values = [[None] * 100 for _ in range(100)]
+ellipsoid_volumes = [[None] * 100 for _ in range(100)]
+grasp_entropy_values = [[None] * 100 for _ in range(100)]
+q_poly_values = [[None] * 100 for _ in range(100)]
+distances = [[None] * 100 for _ in range(100)]
+
+# Let the first point be at theta=0
+x_initial = radius * np.cos(0)
+y_initial = radius * np.sin(0)
+point_initial = np.array([x_initial, y_initial])
+normal_initial = np.array([-x_initial, -y_initial])
+tangent_initial = np.array([y_initial, -x_initial])
+G_initial = np.array([[tangent_initial[0], normal_initial[0]],
+                      [tangent_initial[1], normal_initial[1]],
+                      [np.dot(tangent_initial, np.dot(J, point_initial)),
+                       np.dot(normal_initial, np.dot(J, point_initial))]])
+
+for i in range(1, 100):
+    x_i = radius * np.cos(theta_vals[i])
+    y_i = radius * np.sin(theta_vals[i])
+    point_i = np.array([x_i, y_i])
+    normal_i = np.array([-x_i, -y_i])
+    tangent_i = np.array([y_i, -x_i])
+    G_i = np.array([[tangent_i[0], normal_i[0]],
+                    [tangent_i[1], normal_i[1]],
+                    [np.dot(tangent_i, np.dot(J, point_i)),
+                     np.dot(normal_i, np.dot(J, point_i))]])
+
+    for j in range(1, 100):
+        if i != j:
+            x_j = radius * np.cos(theta_vals[j])
+            y_j = radius * np.sin(theta_vals[j])
+            point_j = np.array([x_j, y_j])
+            normal_j = np.array([-x_j, -y_j])
+            tangent_j = np.array([y_j, -x_j])
+            G_j = np.array([[tangent_j[0], normal_j[0]],
+                            [tangent_j[1], normal_j[1]],
+                            [np.dot(tangent_j, np.dot(J, point_j)),
+                             np.dot(normal_j, np.dot(J, point_j))]])
+            G_matrix = np.hstack((G_initial, G_i, G_j))
+
+            singular_values = np.linalg.svd(G_matrix, compute_uv=False)
+
+            # Index 1
+            min_singular_value = min(singular_values)
+            min_singular_values[i][j] = min_singular_value
+
+            # Index 2
+            ellipsoid_volume = np.linalg.det(np.outer(singular_values, singular_values))
+            ellipsoid_volumes[i][j] = ellipsoid_volume
+
+            # Index 3
+            grasp_entropy_value = min(singular_values) / max(singular_values)
+            grasp_entropy_values[i][j] = grasp_entropy_value
+
+            # Index 4
+            gamma_value = np.pi - 2 * np.pi / 3
+
+            side_ab = np.sqrt((point_i[0] - point_initial[0]) ** 2 + (point_i[1] - point_initial[1]) ** 2)
+            side_bc = np.sqrt((point_j[0] - point_i[0]) ** 2 + (point_j[1] - point_i[1]) ** 2)
+            side_ca = np.sqrt((point_initial[0] - point_j[0]) ** 2 + (point_initial[1] - point_j[1]) ** 2)
+
+            angle_a = np.arccos((side_ca ** 2 - side_ab ** 2 - side_bc ** 2) / (-2 * side_ab * side_bc))
+            angle_b = np.arccos((side_ab ** 2 - side_bc ** 2 - side_ca ** 2) / (-2 * side_bc * side_ca))
+            angle_c = np.arccos((side_bc ** 2 - side_ca ** 2 - side_ab ** 2) / (-2 * side_ab * side_ca))
+
+            theta_max_value = (0 - gamma_value) % 1 + (0 - gamma_value) % 1 + (np.pi - gamma_value) % 1
+
+            q_poly_value = (1 / theta_max_value) * ((angle_a - gamma_value) + (angle_b - gamma_value) + (angle_c - gamma_value))
+            q_poly_values[i][j] = q_poly_value
+
+            # Index 5
+            x0, y0 = 0, 0
+            xc, yc = (point_initial + point_i + point_j) / 3
+            dist_result = np.array([[x0, xc], [y0, yc]])
+            distances[i][j] = dist_result
+
+        else:
+            min_singular_values[i][j] = 0
+            ellipsoid_volumes[i][j] = 0
+            grasp_entropy_values[i][j] = 0
+            q_poly_values[i][j] = 0
+
+# Index 1
+min_singular_values_flat = np.array(min_singular_values).flatten()
+max_min_singular_value = np.max(min_singular_values_flat)
+max_i1, max_j1 = np.unravel_index(np.argmax(min_singular_values_flat), np.array(min_singular_values).shape)
+theta11_result = 2 * 180 * max_i1 / 100
+theta12_result = 2 * 180 * max_j1 / 100
+
+# Index 2
+ellipsoid_volumes_flat = np.array(ellipsoid_volumes).flatten()
+max_ellipsoid_volume = np.max(ellipsoid_volumes_flat)
+max_i2, max_j2 = np.unravel_index(np.argmax(ellipsoid_volumes_flat), np.array(ellipsoid_volumes).shape)
+theta21_result = 2 * 180 * max_i2 / 100
+theta22_result = 2 * 180 * max_j2 / 100
+
+# Index 3
+grasp_entropy_flat = np.array(grasp_entropy_values).flatten()
+max_grasp_entropy = np.max(grasp_entropy_flat)
+max_i3, max_j3 = np.unravel_index(np.argmax(grasp_entropy_flat), np.array(grasp_entropy_values).shape)
+theta31_result = 2 * 180 * max_i3 / 100
+theta32_result = 2 * 180 * max_j3 / 100
+
+# Index 4
+q_poly_flat = np.array(q_poly_values).flatten()
+min_q_poly = np.min(q_poly_flat)
+min_i4, min_j4 = np.unravel_index(np.argmin(q_poly_flat), np.array(q_poly_values).shape)
+theta41_result = 2 * 180 * min_i4 / 100
+theta42_result = 2 * 180 * min_j4 / 100
+
+# Index 5
+distances_flat = np.array(distances).flatten()
+max_distance = np.max(distances_flat)
+max_i5, max_j5 = np.unravel_index(np.argmax(distances_flat), np.array(distances).shape)
+theta51_result = 2 * 180 * max_i5 / 100
+theta52_result = 2 * 180 * max_j5 / 100
